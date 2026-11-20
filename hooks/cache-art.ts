@@ -51,7 +51,7 @@ export const bandPx = (columns: number): number => (columns + 5) * 12
 type Rate = { input: number; read: number }
 export type Model = Rate & { id: string; NAME: string; short?: Rate & { upTo: number } }
 export const MODELS: Model[] = [
-  { id: 'fable', NAME: 'FABLE', input: 10, read: 0.25 },
+  { id: 'fable', NAME: 'FABLE', input: 8, read: 0.2 },
   { id: 'opus', NAME: 'OPUS', input: 4, read: 0.2 },
   { id: 'sonnet', NAME: 'SONNET', input: 2, read: 0.1 },
   { id: 'haiku', NAME: 'HAIKU', input: 0.5, read: 0.05, short: { upTo: 100_000, input: 0.1, read: 0.01 } },

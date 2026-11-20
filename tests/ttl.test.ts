@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { modelId, olderRate } from '../hooks/cache-art'
+import { MODELS, modelId, olderRate } from '../hooks/cache-art'
 import { learnTtl, ruleTtl } from '../hooks/ttl'
 
 const ENV = { force5m: false, ttl: '', enable1h: false }
@@ -35,5 +35,8 @@ test('a model id loses its provider prefix, date and version suffix; older model
   expect(olderRate('claude-sonnet-4-6')).toEqual({ input: 3, read: 0.3 })
   expect(olderRate('claude-opus-4-1-20250805')).toEqual({ input: 15, read: 1.5 })
   expect(olderRate('claude-opus-5-5')).toBeUndefined() // the 5.5 rows price it
+  expect(olderRate('claude-fable-5-2[1m]')).toBeUndefined() // Fable 5.2 is the FABLE row: $8 / $0.20
+  expect(MODELS.find(m => m.id === 'fable')).toMatchObject({ input: 8, read: 0.2 })
+  expect(olderRate('claude-fable-5')).toEqual({ input: 10, read: 1 })
   expect(olderRate('constructor')).toBeUndefined()
 })
