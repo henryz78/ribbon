@@ -38,5 +38,6 @@ test('a model id loses its provider prefix, date and version suffix; older model
   expect(olderRate('claude-fable-5-2[1m]')).toBeUndefined() // Fable 5.2 is the FABLE row: $8 / $0.20
   expect(MODELS.find(m => m.id === 'fable')).toMatchObject({ input: 8, read: 0.2 })
   expect(olderRate('claude-fable-5')).toEqual({ input: 10, read: 1 })
+  expect(olderRate('claude-fable-5-1')).toEqual({ input: 10, read: 0.25 })
   expect(olderRate('constructor')).toBeUndefined()
 })

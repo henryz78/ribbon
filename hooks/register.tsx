@@ -72,21 +72,27 @@ const fmtReset = (iso: string | undefined, now: number, resetting = 'resetting')
 }
 
 /** What the cache drawings read, or null until a request and its context size are known. */
-export const viewOf = (c: CacheFacts | null, now: number, fallbackMin = TTL_MIN, lang: Lang = 'en'): CacheView | null => {
+export const viewOf = (c: CacheFacts | null, now: number, fallbackMin = TTL_MIN, lang: Lang = 'en', current: string | null = null): CacheView | null => {
   if (!c || c.lastAt <= 0 || c.tokens <= 0) return null
   const idleMs = Math.max(0, now - c.lastAt)
   const ttlMin = c.ttlMin ?? fallbackMin
-  const rate = olderRate(c.model)
+  // Each model has its own prompt cache: after /model, the new one starts cold at its own price.
+  const was = familyOf(c.model)
+  const is = familyOf(current)
+  const switched = !!(was && is && was !== is)
+  const model = switched ? current : c.model
+  const rate = olderRate(model)
   return {
-    mode: idleMs >= ttlMin * 60_000 ? 'cold' : 'warm',
+    mode: switched || idleMs >= ttlMin * 60_000 ? 'cold' : 'warm',
     idle: fmtIdle(idleMs),
     idleMin: Math.floor(idleMs / 60000),
     ttlMin,
     tokens: c.tokens,
     window: c.window,
-    mine: familyOf(c.model),
-    ...(c.usd !== undefined ? { usd: c.usd } : {}),
+    mine: familyOf(model),
+    ...(c.usd !== undefined && !switched ? { usd: c.usd } : {}),
     ...(rate ? { rate } : {}),
+    ...(switched ? { switched } : {}),
     lang,
   }
 }
@@ -221,12 +227,21 @@ export const register: Register = (on, options) => {
     return r
   }).catch(($, e, next) => next(e)) // a band that fails to seed never holds up the session
 
+  // /model changes what the band says at once: draw again now, not at the next tick.
+  on('classic.PostModelSwitch', async ($, e, next) => {
+    const r = await next(e)
+    $.ui.invalidate('ui.render')
+    return r
+  }).catch(($, e, next) => next(e))
+
   // Each main-thread request reads or writes the cache, so its start resets the hour.
   on('turn.step', async function* ($, e, next) {
     if (e.agentId) return yield* next(e)
     const now = await $.clock.now()
     const prev = await read($, cache)
-    await update($, cache, c => ({ lastAt: now, tokens: c?.tokens ?? 0, window: c?.window ?? 0, model: c?.model ?? null, ...(c?.ttlMin ? { ttlMin: c.ttlMin } : {}) }))
+    // The request goes to the model /model set now, and writes its cache.
+    const current = await Promise.resolve($.session.model()).catch(() => null)
+    await update($, cache, c => ({ lastAt: now, tokens: c?.tokens ?? 0, window: c?.window ?? 0, model: current || c?.model || null, ...(c?.ttlMin ? { ttlMin: c.ttlMin } : {}) }))
     const result = yield* next(e)
     // The reply's token counts show how long the cache lives: learn it from the traffic.
     const u = (result as { usage?: Record<string, unknown> } | undefined)?.usage
@@ -270,7 +285,8 @@ export const register: Register = (on, options) => {
       const Svg = e.surface !== 'terminal' && 'Svg' in ui ? ui.Svg : null
       const saved = await read($, windows)
       const now = await $.clock.now()
-      const view = viewOf(await read($, cache), now, ruleTtl(cacheEnv, saved), lang)
+      const current = await Promise.resolve($.session.model()).catch(() => null)
+      const view = viewOf(await read($, cache), now, ruleTtl(cacheEnv, saved), lang, current || null)
 
       if (saved.length === 0 && !view) {
         return (
@@ -420,7 +436,7 @@ export const register: Register = (on, options) => {
           : [<Text key="left" color={hue} bold>{` ${Math.max(0, view.ttlMin - view.idleMin)}m`}</Text>]
         : cold
         ? [
-            <Text key="idle" color={hue} bold>{` ${view.idle}`}</Text>,
+            <Text key="idle" color={hue} bold>{` ${view.switched ? T.newModel : view.idle}`}</Text>,
             mine ? <Text key="dot" color={MUTED}> · </Text> : null,
             mine ? <Text key="cost" color={TEXT} bold>{usd(priceOf(view, mine))}</Text> : null,
           ]
@@ -458,7 +474,7 @@ export const register: Register = (on, options) => {
             {open ? null : (
               <Box key="block" flexDirection="column" flexShrink={0} marginRight={2}>
                 <Box flexDirection="row" alignItems="center">{badge}</Box>
-                <Text color={hue} bold>{cold ? T.idleFor(view.idle) : T.leftMin(Math.max(0, view.ttlMin - view.idleMin))}</Text>
+                <Text color={hue} bold>{view.switched ? T.newModel : cold ? T.idleFor(view.idle) : T.leftMin(Math.max(0, view.ttlMin - view.idleMin))}</Text>
                 {mine ? (
                   <Box flexDirection="row">
                     <Text color={TEXT} bold>{usd(priceOf(view, mine))}</Text>
@@ -490,15 +506,16 @@ export const register: Register = (on, options) => {
       let card = null
       if (open && Svg) {
         const o = list.map(w => ({ w, out: runOutOf(w.kind, w.percentUsed, w.resetsAt, now) })).find(x => x.out)
-      const note = o?.out
-        ? {
-            color: o.out.left <= OUT_ALERT ? TONES.alert : TONES.fast,
-            lines: [
+      const lines = [
+        ...(view.switched ? [T.switchedNote] : []),
+        ...(o?.out
+          ? [
               T.runsOut(dayPart(o.out.at, false, lang), clockOf(o.out.at)),
               T.pace(Math.round(o.out.gained), fmtIdle(o.out.over), dateOf(o.out.resetMs, lang), fmtIdle(o.out.resetMs - now)),
-            ],
-          }
-        : undefined
+            ]
+          : []),
+      ]
+      const note = lines.length ? { color: o?.out ? (o.out.left <= OUT_ALERT ? TONES.alert : TONES.fast) : MUTED, lines } : undefined
       const c = cardSvg(view, kind, bandPx(columns), note)
         card = (
           <Box key="card" flexDirection="row">

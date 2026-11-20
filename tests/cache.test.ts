@@ -393,3 +393,25 @@ test('language: zh says the run-out in Chinese', { options: { language: 'zh' } }
   expect(card).toContain('重置')
   await band.unmount()
 })
+
+test('after /model the new model starts cold at its own price, until its first reply', async ($, on) => {
+  mock.store(on)
+  mock.clock(on, { now: NOW })
+  on('session.start', ($, e) => ({ cwd: e.cwd }))
+  on('session.usage', () => ({ value: { startedAt: 0, context: { window: 1000000 }, rateLimits: WINDOWS } }))
+  on('session.model', () => ({ value: 'claude-sonnet-5-5' }))
+  on('classic.SessionStart', () => ({}))
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  // The cache was written by Opus 18 minutes ago: warm, but /model now says Sonnet.
+  await $.classic.SessionStart({ source: 'resume', seconds_since_last_response: WARM_IDLE, context_tokens: 770000, model: 'claude-opus-5-5' })
+
+  const band = await $.ui.mount({ plugin: 'ribbon', surface: 'desktop', component: 'AbovePrompt', props: PROPS })
+  // Cold, so the card opens, with the note about the switch.
+  expect(JSON.stringify(await band.find({ key: 'card' }))).toContain('Model switched')
+  await band.press({ key: 'cache-fold' })
+  expect(await band.find({ text: ' new model' })).toBeDefined()
+  // 770k tokens at Sonnet's 2 x $2 per million, not Opus's $6.16.
+  expect(await band.find({ text: '$3.08' })).toBeDefined()
+  expect(await band.find({ text: '$6.16' })).toBeUndefined()
+  await band.unmount()
+})

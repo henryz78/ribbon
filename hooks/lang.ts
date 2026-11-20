@@ -25,6 +25,8 @@ export type Words = {
   reCache: string
   inCache: string
   nextCosts: (cold: boolean) => string
+  newModel: string
+  switchedNote: string
   warmFor: (ttl: string) => string
   coldNow: string
   lastReply: string
@@ -64,7 +66,9 @@ const en: Words = {
   idle: 'IDLE',
   reCache: 'RE-CACHE',
   inCache: 'IN CACHE',
-  nextCosts: cold => (cold ? 'NEXT MESSAGE COSTS' : 'NEXT MESSAGE COSTS, CACHED'),
+  nextCosts: cold => (cold ? 'NEXT MESSAGE, API PRICE' : 'NEXT MESSAGE, CACHED'),
+  newModel: 'new model',
+  switchedNote: "Model switched: each model has its own cache, so the new one starts cold.",
   warmFor: ttl => `warm ${ttl}`,
   coldNow: 'cold now',
   lastReply: 'last reply',
@@ -101,7 +105,9 @@ const zh: Words = {
   idle: '空闲',
   reCache: '需重写缓存',
   inCache: '缓存中',
-  nextCosts: cold => (cold ? '下条消息花费' : '下条消息花费(命中缓存)'),
+  nextCosts: cold => (cold ? '下条消息(API 价格)' : '下条消息(命中缓存)'),
+  newModel: '新模型',
+  switchedNote: '已切换模型:每个模型的缓存各自独立,新模型从冷缓存开始。',
   warmFor: ttl => `热 ${ttl}`,
   coldNow: '已变冷',
   lastReply: '上次回复',

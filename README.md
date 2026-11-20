@@ -98,6 +98,8 @@ The card shows how long you've been idle, how many tokens are in the cache, and 
 - **It costs nothing to run.** It reads the app's own numbers and draws them. It never calls a model.
 - **Prices are estimates.** They come from a price table in `hooks/cache-art.ts` (`MODELS`), not from your bill. If prices change, edit that table.
 - **Older models are priced as themselves.** The table in `hooks/cache-art.ts` has the 5.5 rows, and `OLDER` lists the rate of each older model by id (Sonnet 4.5, Opus 4.1, and so on).
+- **A model switch starts cold.** Each model has its own prompt cache, so after `/model` to another model family (Opus to Sonnet, say) the band shows COLD and the new model's price straight away, and the card says why. Your next reply writes the new cache and it turns warm again.
+- **Prices are API prices.** On a Claude plan the next message costs you limits, not money; the figure is what it would cost on an API key, a sign of how much of your limits it takes. The card says `API PRICE`.
 - **The cache length is worked out, not assumed.** 5 minutes or 1 hour: from Claude Code's cache settings (`FORCE_PROMPT_CACHING_5M`, `CLAUDE_CODE_PROMPT_CACHE_TTL`, `ENABLE_PROMPT_CACHING_1H`), then the plan (a subscription within its limits gets 1 hour, an API key 5 minutes), then what your own requests show.
 - **Subagents don't count.** Only your main chat resets the cache clock.
 

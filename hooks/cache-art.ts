@@ -62,6 +62,7 @@ const rateOf = (m: Model, tokens: number): Rate => (m.short && tokens <= m.short
 // Models whose prices differ from their MODELS row, by exact id (the pricing page, 2026-11-04).
 // The rows above are the 5.5 generation; a session on an older model gets its own rate.
 const OLDER: Record<string, Rate> = {
+  'claude-fable-5-1': { input: 10, read: 0.25 },
   'claude-fable-5': { input: 10, read: 1 },
   'claude-opus-5': { input: 5, read: 0.5 },
   'claude-opus-4-8': { input: 5, read: 0.5 },
@@ -138,6 +139,8 @@ export type CacheView = {
   lang?: Lang
   /** Claude Code's own re-cache estimate after a resume; it wins over the table for this session's model. */
   usd?: number
+  /** /model now names another model than the one the cache was written for: its cache starts cold. */
+  switched?: boolean
 }
 
 /** A MODELS row as this session sees it: its own rate when it is on an older model. */
@@ -413,7 +416,7 @@ export const cardSvg = (v: CacheView, kind: Kind, W: number, note?: CardNote): {
   const h = H + CARD_TOP
   const body = `<g transform="translate(0 ${CARD_TOP})">` + hline(0) + g + '</g>'
   const alt = cold
-    ? L.altCold(v.idle, tok(v.tokens))
+    ? v.switched ? L.switchedNote : L.altCold(v.idle, tok(v.tokens))
     : L.altWarm(Math.max(0, v.ttlMin - v.idleMin), tok(v.tokens))
   return { source: svgDoc(W, h, body, true), w: W, h, alt }
 }
